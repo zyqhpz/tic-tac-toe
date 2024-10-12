@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Working chat apps</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div id="msgcontainer" style="height:500px;background:#eee;overflow-y: auto;"></div>
+    <div style="overflow: hidden;">
+        <input id="ipt" style="width: 100%; padding: 10px;" onkeypress="mysocket.keypress(event)" type="text" />
+    </div>
+
+    <script src="mysocket.js"></script>
+    <script>
+        var mysocket = new MySocket()
+        mysocket.connectSocket();
+    </script>
+</body>
+
+</html>
