@@ -2,10 +2,11 @@ package pkg
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
+	logger "tic-tac-toe/utils"
 
+	"github.com/brianvoe/gofakeit/v7"
 	"github.com/gorilla/websocket"
 )
 
@@ -14,22 +15,32 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+var EmptyBoard = [][]string{
+	{"", "", ""},
+	{"", "", ""},
+	{"", "", ""},
+}
+
 type socketReader struct {
-	con *websocket.Conn
-	id  string
+	con    *websocket.Conn
+	id     string
+	player Player
 }
 
 type Game struct {
 	MatchID string     `json:"matchId"`
 	Board   [][]string `json:"board"`
+	Players []Player   `json:"players"`
+	Status  string     `json:"status"`
 }
 
 type Player struct {
-	ID   string `json:"userId"`
-	Mark string `json:"mark"`
+	ID             string `json:"userId"`
+	InitialMatchID string `json:"initialMatchId"`
+	Mark           string `json:"mark"`
 }
 
-type Move struct {
+type Message struct {
 	Row    int    `json:"row"`
 	Col    int    `json:"col"`
 	Player Player `json:"player"`
@@ -40,57 +51,124 @@ type Move struct {
 
 var (
 	savedsocketreader = make([]*socketReader, 0) // List of all socket connections
-	mutex             = &sync.Mutex{}            // Mutex to handle concurrent access
+	mutex             = &sync.Mutex{}
+	Games             = make(map[string]Game)
 )
 
 var mark = []string{"X", "O"}
 
-func (i *socketReader) broadcast(move Move) {
+func (i *socketReader) broadcast(message Message) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	// Loop over all socket readers and broadcast the move
-	log.Printf("Broadcasting move: %+v", move)
+	// Loop over all socket readers and broadcast the
+	logger.Log().Debug().Msgf("Broadcasting message: %+v", message)
 	for i, g := range savedsocketreader {
-		// Check if the socket is still open before writing
-		if move.Type == "start" {
-			move.Player.Mark = mark[i]
+		if message.Type == "start" {
+			message.Player.Mark = mark[i]
 		}
-		err := g.writeMsg(move)
+		err := g.writeMsg(message)
 		if err != nil {
-			log.Printf("Error broadcasting to client: %v", err)
-			// Optionally remove closed/disconnected socket from the list
+			logger.Log().Error().Err(err).Msg("Error broadcasting to client")
 			continue
 		}
 	}
+}
+
+func (i *socketReader) startGameMessage(matchID string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	message := Message{
+		Player: Player{
+			Mark: "",
+		},
+		Type: "start",
+	}
+
+	player_counter := 0
+
+	// Loop over all socket readers and only send the start message to the players in the game
+	for _, g := range savedsocketreader {
+		logger.Log().Debug().Msgf("Player ID: %s, InitialMatchID: %s", g.id, g.player.InitialMatchID)
+		if g.player.InitialMatchID == matchID {
+			message.Player.Mark = mark[player_counter]
+			player_counter++
+			err := g.writeMsg(message)
+			logger.Log().Debug().Msgf("Sending start message to player: %s", g.id)
+			if err != nil {
+				logger.Log().Error().Err(err).Msg("Error starting game")
+				continue
+			}
+
+			if player_counter == 2 {
+				break
+			}
+		}
+	}
+
+	logger.Log().Info().Msgf("Game started for matchID: %s", matchID)
 }
 
 func (i *socketReader) read() {
 	for {
 		_, b, err := i.con.ReadMessage()
 		if err != nil {
-			log.Println("Error reading message:", err)
+			logger.Log().Error().Err(err).Msg("Error reading message")
 			break
 		}
 
-		var move Move
-		if err := json.Unmarshal(b, &move); err == nil {
-			log.Printf("Received move: %+v", move)
+		var message Message
+		if err := json.Unmarshal(b, &message); err == nil {
+			logger.Log().Debug().Msgf("Received message: %+v", message)
 
-			// Broadcast the move to all clients, including the current player
-			i.broadcast(move)
+			if message.Type == "join" {
+				// check if matchID exists
+				if _, exists := Games[message.Game.MatchID]; exists {
+					// Add the player to the game
+					game := Games[message.Game.MatchID]
 
-			winner := i.analyzeBoard(move.Game.Board)
-			log.Println("Winner: ", winner)
-			if winner != "" {
-				move.Type = "end"
-				move.Status = winner
+					// Check if the game is already full
+					if len(game.Players) == 2 {
+						logger.Log().Info().Msgf("Game %s is already full", message.Game.MatchID)
+						message.Type = "join"
+						message.Status = "full"
+						i.writeMsg(message)
+					} else {
+						delete(Games, i.player.InitialMatchID)
 
-				// Broadcast the end game message to all clients]
-				i.broadcast(move)
+						i.player = message.Player
+						game.Players = append(game.Players, i.player)
+						Games[message.Game.MatchID] = game
+
+						logger.Log().Debug().Msgf("Player joined the game. Total players: %d", len(Games[message.Game.MatchID].Players))
+
+						// Send a message to the clients to start the game
+						i.startGameMessage(message.Game.MatchID)
+					}
+				} else {
+					logger.Log().Error().Msg("MatchID does not exist")
+					message.Type = "join"
+					message.Status = "failed"
+					i.writeMsg(message)
+				}
+			}
+
+			if message.Type == "move" {
+				// Broadcast the message to all clients, including the current player
+				i.broadcast(message)
+				winner := i.analyzeBoard(message.Game.Board)
+				if winner != "" {
+					logger.Log().Info().Msgf("Game over. Winner: %s", winner)
+					message.Type = "end"
+					message.Status = winner
+
+					// Broadcast the end game message to all clients
+					i.broadcast(message)
+				}
 			}
 		} else {
-			log.Printf("Error unmarshalling move: %v", err)
+			logger.Log().Error().Err(err).Msg("Error unmarshalling message")
 		}
 	}
 
@@ -98,16 +176,16 @@ func (i *socketReader) read() {
 	i.removeReader()
 }
 
-func (i *socketReader) writeMsg(move Move) error {
-	msg, err := json.Marshal(move)
+func (i *socketReader) writeMsg(message Message) error {
+	msg, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
 
 	err = i.con.WriteMessage(websocket.TextMessage, msg)
 	if err != nil {
-		log.Printf("Error writing message: %v", err)
-		i.con.Close() // Close the connection if write fails
+		logger.Log().Error().Err(err).Msg("Error writing message")
+		i.con.Close()
 		return err
 	}
 
@@ -118,23 +196,25 @@ func (i *socketReader) writeMsg(move Move) error {
 func (i *socketReader) addReader() {
 	mutex.Lock()
 	defer mutex.Unlock()
-	savedsocketreader = append(savedsocketreader, i)
-	log.Printf("New connection added with ID: %s. Total active connections: %d", i.id, len(savedsocketreader))
 
-	if len(savedsocketreader) == 2 {
-		// Send a message to the clients to start the game
-		move := Move{
-			Row: 0,
-			Col: 0,
-			Player: Player{
-				ID:   "server",
-				Mark: "X",
-			},
-			Type: "start",
-		}
-		go i.broadcast(move)
+	i.player.ID = i.id
+
+	// Create a new game
+	game := Game{
+		MatchID: i.player.InitialMatchID,
+		Board:   EmptyBoard,
+		Players: []Player{
+			i.player,
+		},
+		Status: "waiting",
 	}
 
+	// Add the game to the list of active games
+	Games[game.MatchID] = game
+
+	savedsocketreader = append(savedsocketreader, i)
+	logger.Log().Info().Msgf("New connection added with ID: %s. Total active connections: %d", i.id, len(savedsocketreader))
+	logger.Log().Info().Msgf("New game created with matchID: %s", game.MatchID)
 }
 
 // Removes the socket reader when a connection is closed
@@ -146,7 +226,7 @@ func (i *socketReader) removeReader() {
 		if g == i {
 			// Remove the socket reader from the list
 			savedsocketreader = append(savedsocketreader[:idx], savedsocketreader[idx+1:]...)
-			log.Printf("Connection closed. Total active connections: %d", len(savedsocketreader))
+			logger.Log().Info().Msgf("Connection closed. Total active connections: %d", len(savedsocketreader))
 			break
 		}
 	}
@@ -189,15 +269,30 @@ func (i *socketReader) analyzeBoard(board [][]string) string {
 	return "draw"
 }
 
+func GenerateUniqueMatchID() string {
+	var matchID string
+
+	// Loop until a unique matchID is generated
+	for {
+		matchID = gofakeit.Animal()
+		// Check if the matchID already exists in the games map
+		if _, exists := Games[matchID]; !exists {
+			break // if it's unique, exit the loop
+		}
+	}
+
+	return matchID
+}
+
 // Handler to create and manage new WebSocket connections
-func SocketReaderCreate(w http.ResponseWriter, r *http.Request, uuid string) {
+func SocketReaderCreate(w http.ResponseWriter, r *http.Request, uuid string, matchID string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
+		logger.Log().Error().Err(err).Msg("Failed to upgrade connection")
 		return
 	}
 
-	reader := &socketReader{con: conn, id: uuid}
+	reader := &socketReader{con: conn, id: uuid, player: Player{InitialMatchID: matchID}}
 	reader.addReader()
 
 	go reader.read()

@@ -10,16 +10,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="manifest" href="/icons/site.webmanifest">
-    <style>
-        .cell {
-            transition: background-color 0.3s;
-        }
-
-        .cell.bg-gray-300 {
-            background-color: #d1d5db;
-            /* Tailwind's gray-300 */
-        }
-    </style>
 </head>
 
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
@@ -37,21 +27,34 @@
         {{ end }}
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+    <p class="mt-4 text-xl" id="match-id">Your Match ID: {{ .MatchID }}</p>
 
-    <p class="mt-4 text-lg" id="game-status">{{ .Message }}</p>
+    <!-- Match ID Input -->
+    <div class="mb-4" id="match-id-input-container">
+        <label for="match-id-input" class="block text-lg font-semibold mb-2">Enter Opponent's Match ID or wait for them
+            to
+            join</label>
+        <input type="text" id="match-id-input" class="border-2 border-gray-300 rounded-lg p-2 w-64 text-center"
+            placeholder="Match ID" />
+        <button onclick="mysocket.joinMatch()"
+            class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Join</button>
+    </div>
+
+    <p class="mt-4 text-lg" id="game-status"></p>
     <p class="mt-4 text-lg" id="player-mark"></p>
-    <p class="mt-4 text-lg" id="player-id">Player ID: {{ .PlayerID }}</p>
 
     <script>
         const WEBSOCKET_URL = "{{.WebSocketUrl}}";
         let user_id = "{{.PlayerID}}";
+        let match_id = "{{.MatchID}}";
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
     <script src="/js/mysocket.js"></script>
     <script>
         var mysocket = new MySocket();
         mysocket.connectSocket();
         mysocket.userId = user_id;
+        mysocket.matchId = match_id;
     </script>
 </body>
 

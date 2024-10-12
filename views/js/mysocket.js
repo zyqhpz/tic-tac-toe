@@ -2,10 +2,9 @@ class MySocket {
   constructor() {
     this.socket = null;
     this.userId = "";
-    this.playerMark = ""; // This will store the player's mark (e.g., 'X' or 'O')
-    this.gameId = ""; // Store the current Game ID
-    this.matchId = ""; // Store the current Match ID
-    this.isYourTurn = false; // Flag to check if it's the player's turn
+    this.playerMark = "";
+    this.matchId = "";
+    this.isYourTurn = false;
     this.board = [
       ["", "", ""],
       ["", "", ""],
@@ -38,36 +37,65 @@ class MySocket {
       alert("It's not your turn!");
       return;
     }
-    // Create a move object that matches the Go structure
+    // Create a message object that matches the Go structure
     row = Number(row);
     col = Number(col);
-    const move = {
+    const message = {
       row: row,
       col: col,
       player: {
-        userId: this.userId, // The player's unique ID
-        mark: this.playerMark, // The player's mark, e.g., 'X' or 'O'
+        userId: this.userId,
+        mark: this.playerMark,
       },
       game: {
-        matchId: this.matchId, // The current match ID
-        board: this.board, // The current game board
+        matchId: this.matchId,
+        board: this.board,
       },
-      type: "move", // Specify the type of message
-      status: "playing", // The game status
+      type: "move",
+      status: "playing",
     };
 
-    this.updateBoard(move.type, row, col, move.player);
+    this.updateBoard(message.type, row, col, message.player);
 
-    // Send the move object as a JSON string
-    this.socket.send(JSON.stringify(move));
+    // Send the message object as a JSON string
+    this.socket.send(JSON.stringify(message));
+  }
+
+  joinMatch() {
+    let matchId = document.getElementById("match-id-input").value;
+    if (matchId === "") {
+      alert("Match ID cannot be empty!");
+      return;
+    }
+    if (matchId === this.matchId) {
+      alert("You are already in this match!");
+      return;
+    }
+    this.matchId = matchId;
+    const message = {
+      player: {
+        userId: this.userId,
+        initialMatchID: matchId,
+      },
+      game: {
+        matchId: matchId,
+      },
+      type: "join",
+    };
+    this.socket.send(JSON.stringify(message));
   }
 
   handleMessage(data) {
-    if (data.type === "move") {
-      if (data.player.userId != this.userId) {
-        this.updateBoard(data.type, data.row, data.col, data.player);
+    if (data.type === "join") {
+      if (data.status === "failed") {
+        document.getElementById("match-id-input").value = "";
+        alert("Failed to join the match!");
+        return;
+      } else if (data.status === "full") {
+        document.getElementById("match-id-input").value = "";
+        alert("Match is full!");
+        return;
       }
-      this.updateGameStatus(data.player);
     }
     if (data.type === "start") {
       this.playerMark = data.player.mark;
@@ -85,22 +113,39 @@ class MySocket {
           baseText + "Waiting for opponent...";
       }
 
-      // Update the board
       this.updateBoard(data.type, data.row, data.col, data.player);
+
+      document.getElementById("match-id").innerText =
+        "Match ID: " + this.matchId;
+      document.getElementById("match-id-input-container").style.display =
+        "none";
+    }
+    if (data.type === "move") {
+      if (
+        data.player.userId != this.userId &&
+        data.game.matchId === this.matchId
+      ) {
+        this.updateBoard(data.type, data.row, data.col, data.player);
+      }
+      if (data.game.matchId === this.matchId) {
+        this.updateGameStatus(data.player);
+      }
     }
     if (data.type === "end") {
-      if (data.status === "draw") {
-        document.getElementById("game-status").innerText =
-          "Game ended in a draw!";
-      } else {
-        if (data.player.userId === this.userId) {
-          document.getElementById("game-status").innerText = "You won!";
+      if (data.game.matchId === this.matchId) {
+        if (data.status === "draw") {
+          document.getElementById("game-status").innerText =
+            "Game ended in a draw!";
         } else {
-          document.getElementById("game-status").innerText = "You lost!";
+          if (data.player.userId === this.userId) {
+            document.getElementById("game-status").innerText = "You won!";
+          } else {
+            document.getElementById("game-status").innerText = "You lost!";
+          }
         }
-      }
 
-      this.gameEnded();
+        this.gameEnded();
+      }
     }
   }
 
@@ -222,7 +267,7 @@ class MySocket {
   updateGameStatus(player) {
     const statusElement = document.getElementById("game-status");
     if (statusElement) {
-      statusElement.innerText = `${player.mark} has made a move!`; // Customize this message as needed
+      statusElement.innerText = `${player.mark} has made a move!`;
     }
   }
 }
