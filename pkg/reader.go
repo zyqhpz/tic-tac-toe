@@ -110,11 +110,50 @@ func (i *socketReader) startGameMessage(matchID string) {
 	logger.Log().Info().Msgf("Game started for matchID: %s", matchID)
 }
 
+func endGameMessage(matchID string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if _, exists := Games[matchID]; !exists {
+		logger.Log().Error().Msg("MatchID does not exist")
+		return
+	}
+
+	game := Games[matchID]
+	if game.Status != "ended" {
+		message := Message{
+			Type:   "end",
+			Status: "closed",
+			Game: Game{
+				MatchID: matchID,
+			},
+		}
+
+		logger.Log().Info().Msgf("Ending game for matchID: %s", matchID)
+
+		// Loop over all socket readers and only send the end message to the players in the game
+		for _, g := range savedsocketreader {
+			if g.player.InitialMatchID == matchID {
+				err := g.writeMsg(message)
+				if err != nil {
+					logger.Log().Error().Err(err).Msg("Error ending game")
+					continue
+				}
+			}
+		}
+
+		delete(Games, matchID)
+		logger.Log().Info().Msgf("Game ended for matchID: %s", matchID)
+	}
+}
+
 func (i *socketReader) read() {
 	for {
+		temp_matchID := i.player.InitialMatchID
 		_, b, err := i.con.ReadMessage()
 		if err != nil {
 			logger.Log().Error().Err(err).Msg("Error reading message")
+			endGameMessage(temp_matchID)
 			break
 		}
 
@@ -162,6 +201,10 @@ func (i *socketReader) read() {
 					logger.Log().Info().Msgf("Game over. Winner: %s", winner)
 					message.Type = "end"
 					message.Status = winner
+
+					game := Games[message.Game.MatchID]
+					game.Status = "ended"
+					Games[message.Game.MatchID] = game
 
 					// Broadcast the end game message to all clients
 					i.broadcast(message)

@@ -4,12 +4,14 @@ class MySocket {
     this.userId = "";
     this.playerMark = "";
     this.matchId = "";
+    this.originMatchId = "";
     this.isYourTurn = false;
     this.board = [
       ["", "", ""],
       ["", "", ""],
       ["", "", ""],
     ];
+    this.status = "waiting";
   }
 
   connectSocket() {
@@ -33,6 +35,10 @@ class MySocket {
   }
 
   sendMove(row, col) {
+    if (this.status === "waiting") {
+      alert("You are not in a match!");
+      return;
+    }
     if (this.isYourTurn === false) {
       alert("It's not your turn!");
       return;
@@ -62,7 +68,7 @@ class MySocket {
   }
 
   joinMatch() {
-    let matchId = document.getElementById("match-id-input").value;
+    let matchId = document.getElementById("match-id-input").value.toLowerCase();
     if (matchId === "") {
       alert("Match ID cannot be empty!");
       return;
@@ -71,7 +77,6 @@ class MySocket {
       alert("You are already in this match!");
       return;
     }
-    this.matchId = matchId;
     const message = {
       player: {
         userId: this.userId,
@@ -83,15 +88,22 @@ class MySocket {
       type: "join",
     };
     this.socket.send(JSON.stringify(message));
+    this.originMatchId = this.matchId;
+    this.matchId = matchId;
+    this.status = "playing";
   }
 
   handleMessage(data) {
     if (data.type === "join") {
       if (data.status === "failed") {
+        this.matchId = this.originMatchId;
+        this.status = "waiting";
         document.getElementById("match-id-input").value = "";
         alert("Failed to join the match!");
         return;
       } else if (data.status === "full") {
+        this.matchId = this.originMatchId;
+        this.status = "waiting";
         document.getElementById("match-id-input").value = "";
         alert("Match is full!");
         return;
@@ -119,6 +131,8 @@ class MySocket {
         "Match ID: " + this.matchId;
       document.getElementById("match-id-input-container").style.display =
         "none";
+
+      this.status = "playing";
     }
     if (data.type === "move") {
       if (
@@ -133,7 +147,10 @@ class MySocket {
     }
     if (data.type === "end") {
       if (data.game.matchId === this.matchId) {
-        if (data.status === "draw") {
+        if (data.status === "closed") {
+          document.getElementById("game-status").innerText =
+            "Connection closed! Your opponent may have left the game.";
+        } else if (data.status === "draw") {
           document.getElementById("game-status").innerText =
             "Game ended in a draw!";
         } else {
