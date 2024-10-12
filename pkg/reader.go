@@ -18,17 +18,23 @@ type socketReader struct {
 	con *websocket.Conn
 }
 
+type Game struct {
+	MatchID string     `json:"matchId"`
+	Board   [][]string `json:"board"`
+}
+
 type Player struct {
 	ID   string `json:"userId"`
 	Mark string `json:"mark"`
 }
 
 type Move struct {
-	Row     int    `json:"row"`
-	Col     int    `json:"col"`
-	Player  Player `json:"player"`
-	MatchID string `json:"matchId"`
-	Type    string `json:"type"`
+	Row    int    `json:"row"`
+	Col    int    `json:"col"`
+	Player Player `json:"player"`
+	Game   Game   `json:"game"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
 }
 
 var (
@@ -36,13 +42,19 @@ var (
 	mutex             = &sync.Mutex{}            // Mutex to handle concurrent access
 )
 
+var mark = []string{"X", "O"}
+
 func (i *socketReader) broadcast(move Move) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	// Loop over all socket readers and broadcast the move
-	for _, g := range savedsocketreader {
+	log.Printf("Broadcasting move: %+v", move)
+	for i, g := range savedsocketreader {
 		// Check if the socket is still open before writing
+		if move.Type == "start" {
+			move.Player.Mark = mark[i]
+		}
 		err := g.writeMsg(move)
 		if err != nil {
 			log.Printf("Error broadcasting to client: %v", err)
@@ -66,6 +78,16 @@ func (i *socketReader) read() {
 
 			// Broadcast the move to all clients, including the current player
 			i.broadcast(move)
+
+			winner := i.analyzeBoard(move.Game.Board)
+			log.Println("Winner: ", winner)
+			if winner != "" {
+				move.Type = "end"
+				move.Status = winner
+
+				// Broadcast the end game message to all clients]
+				i.broadcast(move)
+			}
 		} else {
 			log.Printf("Error unmarshalling move: %v", err)
 		}
@@ -97,6 +119,21 @@ func (i *socketReader) addReader() {
 	defer mutex.Unlock()
 	savedsocketreader = append(savedsocketreader, i)
 	log.Printf("New connection added. Total active connections: %d", len(savedsocketreader))
+
+	if len(savedsocketreader) == 2 {
+		// Send a message to the clients to start the game
+		move := Move{
+			Row: 0,
+			Col: 0,
+			Player: Player{
+				ID:   "server",
+				Mark: "X",
+			},
+			Type: "start",
+		}
+		go i.broadcast(move)
+	}
+
 }
 
 // Removes the socket reader when a connection is closed
@@ -112,6 +149,43 @@ func (i *socketReader) removeReader() {
 			break
 		}
 	}
+}
+
+// Analyze the board to check for a winner or a draw
+func (i *socketReader) analyzeBoard(board [][]string) string {
+	// Check rows
+	for i := 0; i < 3; i++ {
+		if board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != "" {
+			return board[i][0]
+		}
+	}
+
+	// Check columns
+	for i := 0; i < 3; i++ {
+		if board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != "" {
+			return board[0][i]
+		}
+	}
+
+	// Check diagonals
+	if board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != "" {
+		return board[0][0]
+	}
+
+	if board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != "" {
+		return board[0][2]
+	}
+
+	// Check for a draw
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
+			if board[i][j] == "" {
+				return ""
+			}
+		}
+	}
+
+	return "draw"
 }
 
 // Handler to create and manage new WebSocket connections
