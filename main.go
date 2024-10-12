@@ -33,6 +33,9 @@ func main() {
 	// Handle static files
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("./views/js/"))))
 
+	// Handle static files for images
+	http.Handle("/icons/", http.StripPrefix("/icons/", http.FileServer(http.Dir("./views/icons/"))))
+
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Create a TemplateData instance with the WebSocketHost
