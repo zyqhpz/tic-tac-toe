@@ -210,6 +210,12 @@ class MySocket {
     cells.forEach((cell) => {
       cell.onclick = null;
     });
+
+    this.board = [
+      ["", "", ""],
+      ["", "", ""],
+      ["", "", ""],
+    ];
   }
 
   // Function to update the game status message
