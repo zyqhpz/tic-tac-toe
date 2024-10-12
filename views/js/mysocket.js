@@ -27,18 +27,19 @@ class MySocket {
   }
 
   connectSocket() {
-    console.log("memulai socket");
-    var socket = new WebSocket("ws://localhost:8080/socket"); //make sure the port matches with your golang code
+    console.log("connecting socket");
+    const host = WEBSOCKET_URL;
+    var socket = new WebSocket(host + "/socket");
     this.mysocket = socket;
 
     socket.onmessage = (e) => {
       this.showMessage(e.data, false);
     };
     socket.onopen = () => {
-      console.log("socket opend");
+      console.log("socket opened");
     };
     socket.onclose = () => {
-      console.log("socket close");
+      console.log("socket closed");
     };
   }
 }
