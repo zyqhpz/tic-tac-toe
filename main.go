@@ -8,11 +8,17 @@ import (
 
 	reader "tic-tac-toe/pkg"
 
+	"github.com/google/uuid"
+
 	"github.com/joho/godotenv"
 )
 
+// TemplateData represents the data to be passed to the HTML template
 type TemplateData struct {
 	WebSocketUrl string
+	Board        [][]string // 2D slice to represent the Tic Tac Toe board
+	Message      string     // Message to display game status
+	PlayerID     string
 }
 
 func main() {
@@ -30,6 +36,13 @@ func main() {
 
 	websocketUrl := os.Getenv("WEBSOCKET_URL")
 
+	// Initialize the Tic Tac Toe board
+	initialBoard := [][]string{
+		{"", "", ""},
+		{"", "", ""},
+		{"", "", ""},
+	}
+
 	// Handle static files
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("./views/js/"))))
 
@@ -38,8 +51,13 @@ func main() {
 
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Create a TemplateData instance with the WebSocketHost
-		data := TemplateData{WebSocketUrl: websocketUrl}
+		// Create a TemplateData instance with the WebSocketHost and initial board
+		data := TemplateData{
+			WebSocketUrl: websocketUrl,
+			Board:        initialBoard,
+			Message:      "",
+			PlayerID:     uuid.New().String(),
+		}
 
 		// Parse and execute the HTML template
 		tmpl, err := template.ParseFiles("views/index.html")

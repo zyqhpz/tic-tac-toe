@@ -1,28 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe | Haziq Hapiz</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="manifest" href="/icons/site.webmanifest">
+    <style>
+        .cell {
+            transition: background-color 0.3s;
+        }
+
+        .cell.bg-gray-300 {
+            background-color: #d1d5db;
+            /* Tailwind's gray-300 */
+        }
+    </style>
 </head>
 
-<body>
-    <div id="msgcontainer" style="height:500px;background:#eee;overflow-y: auto;"></div>
-    <div style="overflow: hidden;">
-        <input id="ipt" style="width: 100%; padding: 10px;" onkeypress="mysocket.keypress(event)" type="text" />
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
+    <h1 class="text-4xl font-bold mb-4">Tic Tac Toe</h1>
+
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        {{ range $i, $row := .Board }}
+        {{ range $j, $cell := $row }}
+        <div data-row="{{ $i }}" data-col="{{ $j }}"
+            class="cell h-24 w-24 flex items-center justify-center border-2 border-gray-300 bg-white text-3xl cursor-pointer hover:bg-gray-200 transition-colors duration-300"
+            onclick="mysocket.sendMove({{ $i }}, {{ $j }})">
+            {{ if $cell }}{{ $cell }}{{ end }}
+        </div>
+        {{ end }}
+        {{ end }}
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js"></script>
+
+    <p class="mt-4 text-lg" id="game-status">{{ .Message }}</p>
+    <p class="mt-4 text-lg" id="player-id">Player ID: {{ .PlayerID }}</p>
+
     <script>
-        const WEBSOCKET_URL = "{{.WebSocketUrl}}"; // Go template placeholder
+        const WEBSOCKET_URL = "{{.WebSocketUrl}}";
+        let user_id = "{{.PlayerID}}";
     </script>
     <script src="/js/mysocket.js"></script>
     <script>
         var mysocket = new MySocket();
         mysocket.connectSocket();
+        mysocket.userId = user_id;
     </script>
 </body>
 

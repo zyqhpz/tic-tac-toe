@@ -1,8 +1,10 @@
 package pkg
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -12,97 +14,116 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-var savedsocketreader []*socketReader
-
-func SocketReaderCreate(w http.ResponseWriter, r *http.Request) {
-	log.Println("socket request")
-	if savedsocketreader == nil {
-		savedsocketreader = make([]*socketReader, 0)
-	}
-
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.Println(err)
-		}
-		r.Body.Close()
-
-	}()
-	con, _ := upgrader.Upgrade(w, r, nil)
-
-	ptrSocketReader := &socketReader{
-		con: con,
-	}
-
-	savedsocketreader = append(savedsocketreader, ptrSocketReader)
-
-	ptrSocketReader.startThread()
-}
-
-// socketReader struct
 type socketReader struct {
-	con  *websocket.Conn
-	mode int
-	name string
+	con *websocket.Conn
 }
 
-func (i *socketReader) broadcast(str string) {
+type Player struct {
+	ID   string `json:"userId"`
+	Mark string `json:"mark"`
+}
+
+type Move struct {
+	Row     int    `json:"row"`
+	Col     int    `json:"col"`
+	Player  Player `json:"player"`
+	MatchID string `json:"matchId"`
+	Type    string `json:"type"`
+}
+
+var (
+	savedsocketreader = make([]*socketReader, 0) // List of all socket connections
+	mutex             = &sync.Mutex{}            // Mutex to handle concurrent access
+)
+
+func (i *socketReader) broadcast(move Move) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Loop over all socket readers and broadcast the move
 	for _, g := range savedsocketreader {
-
-		if g == i {
-			// no send message to himself
+		// Check if the socket is still open before writing
+		err := g.writeMsg(move)
+		if err != nil {
+			log.Printf("Error broadcasting to client: %v", err)
+			// Optionally remove closed/disconnected socket from the list
 			continue
 		}
-
-		if g.mode == 1 {
-			// no send message to connected user before user write his name
-			continue
-		}
-		g.writeMsg(i.name, str)
 	}
 }
 
 func (i *socketReader) read() {
-	_, b, er := i.con.ReadMessage()
-	if er != nil {
-		panic(er)
+	for {
+		_, b, err := i.con.ReadMessage()
+		if err != nil {
+			log.Println("Error reading message:", err)
+			break
+		}
+
+		var move Move
+		if err := json.Unmarshal(b, &move); err == nil {
+			log.Printf("Received move: %+v", move)
+
+			// Broadcast the move to all clients, including the current player
+			i.broadcast(move)
+		} else {
+			log.Printf("Error unmarshalling move: %v", err)
+		}
 	}
-	log.Println(i.name + " " + string(b))
-	log.Println(i.mode)
 
-	if i.mode == 1 {
-		i.name = string(b)
-		i.writeMsg("System", "Welcome "+i.name+", please write a message and we will broadcast it to other users.")
-		i.mode = 2 // real msg mode
+	// Remove the socket reader if the connection closes
+	i.removeReader()
+}
 
+func (i *socketReader) writeMsg(move Move) error {
+	msg, err := json.Marshal(move)
+	if err != nil {
+		return err
+	}
+
+	err = i.con.WriteMessage(websocket.TextMessage, msg)
+	if err != nil {
+		log.Printf("Error writing message: %v", err)
+		i.con.Close() // Close the connection if write fails
+		return err
+	}
+
+	return nil
+}
+
+// Adds the current socket reader to the list of active connections
+func (i *socketReader) addReader() {
+	mutex.Lock()
+	defer mutex.Unlock()
+	savedsocketreader = append(savedsocketreader, i)
+	log.Printf("New connection added. Total active connections: %d", len(savedsocketreader))
+}
+
+// Removes the socket reader when a connection is closed
+func (i *socketReader) removeReader() {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	for idx, g := range savedsocketreader {
+		if g == i {
+			// Remove the socket reader from the list
+			savedsocketreader = append(savedsocketreader[:idx], savedsocketreader[idx+1:]...)
+			log.Printf("Connection closed. Total active connections: %d", len(savedsocketreader))
+			break
+		}
+	}
+}
+
+// Handler to create and manage new WebSocket connections
+func SocketReaderCreate(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Failed to upgrade connection:", err)
 		return
 	}
 
-	i.broadcast(string(b))
+	reader := &socketReader{con: conn}
+	reader.addReader()
 
-	log.Println(i.name + " " + string(b))
-}
-
-func (i *socketReader) writeMsg(name string, str string) {
-	i.con.WriteMessage(websocket.TextMessage, []byte("<b>"+name+": </b>"+str))
-}
-
-func (i *socketReader) startThread() {
-	i.writeMsg("System", "Please write your name")
-	i.mode = 1 //mode 1 get user name
-
-	go func() {
-		defer func() {
-			err := recover()
-			if err != nil {
-				log.Println(err)
-			}
-			log.Println("thread socketreader finish")
-		}()
-
-		for {
-			i.read()
-		}
-
-	}()
+	go reader.read()
 }
