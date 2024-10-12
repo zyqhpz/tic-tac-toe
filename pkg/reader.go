@@ -16,6 +16,7 @@ var upgrader = websocket.Upgrader{
 
 type socketReader struct {
 	con *websocket.Conn
+	id  string
 }
 
 type Game struct {
@@ -118,7 +119,7 @@ func (i *socketReader) addReader() {
 	mutex.Lock()
 	defer mutex.Unlock()
 	savedsocketreader = append(savedsocketreader, i)
-	log.Printf("New connection added. Total active connections: %d", len(savedsocketreader))
+	log.Printf("New connection added with ID: %s. Total active connections: %d", i.id, len(savedsocketreader))
 
 	if len(savedsocketreader) == 2 {
 		// Send a message to the clients to start the game
@@ -189,14 +190,14 @@ func (i *socketReader) analyzeBoard(board [][]string) string {
 }
 
 // Handler to create and manage new WebSocket connections
-func SocketReaderCreate(w http.ResponseWriter, r *http.Request) {
+func SocketReaderCreate(w http.ResponseWriter, r *http.Request, uuid string) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade connection:", err)
 		return
 	}
 
-	reader := &socketReader{con: conn}
+	reader := &socketReader{con: conn, id: uuid}
 	reader.addReader()
 
 	go reader.read()

@@ -49,14 +49,17 @@ func main() {
 	// Handle static files for images
 	http.Handle("/icons/", http.StripPrefix("/icons/", http.FileServer(http.Dir("./views/icons/"))))
 
+	temp_uuid := ""
+
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Create a TemplateData instance with the WebSocketHost and initial board
+		temp_uuid = uuid.New().String()
 		data := TemplateData{
 			WebSocketUrl: websocketUrl,
 			Board:        initialBoard,
 			Message:      "",
-			PlayerID:     uuid.New().String(),
+			PlayerID:     temp_uuid,
 		}
 
 		// Parse and execute the HTML template
@@ -72,7 +75,9 @@ func main() {
 	})
 
 	// Serve the WebSocket endpoint
-	http.HandleFunc("/socket", reader.SocketReaderCreate)
+	http.HandleFunc("/socket", func(w http.ResponseWriter, r *http.Request) {
+		reader.SocketReaderCreate(w, r, temp_uuid)
+	})
 
 	var PORT = "8080"
 	log.Println("Server started at port " + PORT)
