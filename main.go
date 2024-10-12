@@ -8,22 +8,26 @@ import (
 
 	reader "tic-tac-toe/pkg"
 
-	"github.com/joho/godotenv" // Import the package to read .env files
+	"github.com/joho/godotenv"
 )
 
-// Define a struct to hold the template data
 type TemplateData struct {
 	WebSocketUrl string
 }
 
 func main() {
-	// Load environment variables from .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	env := os.Getenv("ENV")
+	if env == "" {
+		env = "development"
 	}
 
-	// Get the WebSocket host from environment variables
+	if env == "development" {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
+	}
+
 	websocketUrl := os.Getenv("WEBSOCKET_URL")
 
 	// Handle static files
@@ -52,7 +56,6 @@ func main() {
 	var PORT = "8080"
 	log.Println("Server started at port " + PORT)
 
-	// Start the server
 	if err := http.ListenAndServe(":"+PORT, nil); err != nil {
 		log.Fatal(err)
 	}
