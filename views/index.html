@@ -12,36 +12,40 @@
     <link rel="manifest" href="/icons/site.webmanifest">
 </head>
 
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
-    <h1 class="text-4xl font-bold mb-4">Tic Tac Toe</h1>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen overflow-hidden">
+    <div class="text-center flex flex-col items-center justify-center">
+        <h1 class="text-4xl font-bold mb-4">Tic Tac Toe</h1>
 
-    <div class="grid grid-cols-3 gap-4 mb-4">
-        {{ range $i, $row := .Board }}
-        {{ range $j, $cell := $row }}
-        <div data-row="{{ $i }}" data-col="{{ $j }}"
-            class="cell h-24 w-24 flex items-center justify-center border-2 border-gray-300 bg-white text-3xl cursor-pointer hover:bg-gray-200 transition-colors duration-300"
-            onclick="mysocket.sendMove({{ $i }}, {{ $j }})">
-            {{ if $cell }}{{ $cell }}{{ end }}
+        <div class="grid grid-cols-3 gap-4 mb-4">
+            {{ range $i, $row := .Board }}
+            {{ range $j, $cell := $row }}
+            <div data-row="{{ $i }}" data-col="{{ $j }}"
+                class="cell h-24 w-24 flex items-center justify-center border-2 border-gray-300 bg-white text-3xl cursor-pointer hover:bg-gray-200 transition-colors duration-300"
+                onclick="mysocket.sendMove({{ $i }}, {{ $j }})">
+                {{ if $cell }}{{ $cell }}{{ end }}
+            </div>
+            {{ end }}
+            {{ end }}
         </div>
-        {{ end }}
-        {{ end }}
+
+        <p class="my-4 text-xl" id="match-id">Your Match ID: {{ .MatchID }}</p>
+
+        <!-- Match ID Input -->
+        <div class="px-4" id="match-id-input-container">
+            <label for="match-id-input" class="block text-base font-semibold mb-2 mx-auto text-center">Enter Opponent's
+                Match ID or wait for
+                them to join yours</label>
+            <div class="flex items-center justify-center">
+                <input type="text" id="match-id-input" class="border-2 border-gray-300 rounded-lg p-2 w-64 text-center"
+                    placeholder="Match ID" onkeydown="if (event.key === 'Enter') { mysocket.joinMatch(); }" />
+                <button onclick="mysocket.joinMatch()"
+                    class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Join</button>
+            </div>
+        </div>
+
+        <p class="mt-4 text-lg" id="game-status"></p>
+        <p class="mt-4 text-lg" id="player-mark"></p>
     </div>
-
-    <p class="mt-4 text-xl" id="match-id">Your Match ID: {{ .MatchID }}</p>
-
-    <!-- Match ID Input -->
-    <div class="mb-4" id="match-id-input-container">
-        <label for="match-id-input" class="block text-lg font-semibold mb-2">Enter Opponent's Match ID or wait for them
-            to
-            join</label>
-        <input type="text" id="match-id-input" class="border-2 border-gray-300 rounded-lg p-2 w-64 text-center"
-            placeholder="Match ID" />
-        <button onclick="mysocket.joinMatch()"
-            class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Join</button>
-    </div>
-
-    <p class="mt-4 text-lg" id="game-status"></p>
-    <p class="mt-4 text-lg" id="player-mark"></p>
 
     <script>
         const WEBSOCKET_URL = "{{.WebSocketUrl}}";

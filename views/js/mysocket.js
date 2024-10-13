@@ -36,7 +36,7 @@ class MySocket {
 
   sendMove(row, col) {
     if (this.status === "waiting") {
-      alert("You are not in a match!");
+      alert("Match has not started yet!");
       return;
     }
     if (this.isYourTurn === false) {
