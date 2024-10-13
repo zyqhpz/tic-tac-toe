@@ -4,17 +4,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tic Tac Toe | Haziq Hapiz</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
     <link rel="manifest" href="/icons/site.webmanifest">
+
+    <!-- HTML Meta Tags -->
+    <title>Tic Tac Toe | Haziq Hapiz</title>
+    <meta name="description" content="Tic Tac Toe game built with Golang and WebSockets">
+
+    <!-- Facebook Meta Tags -->
+    <meta property="og:url" content="https://tct.haziqhapiz.my">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Tic Tac Toe | Haziq Hapiz">
+    <meta property="og:description" content="Tic Tac Toe game built with Golang and WebSockets">
+    <meta property="og:image" content="/icons/og.jpg">
+
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta property="twitter:domain" content="tct.haziqhapiz.my">
+    <meta property="twitter:url" content="https://tct.haziqhapiz.my">
+    <meta name="twitter:title" content="Tic Tac Toe | Haziq Hapiz">
+    <meta name="twitter:description" content="Tic Tac Toe game built with Golang and WebSockets">
+    <meta name="twitter:image" content="/icons/og.jpg">
 </head>
 
-<body class="bg-gray-100 flex items-center justify-center min-h-screen overflow-hidden">
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div class="text-center flex flex-col items-center justify-center">
-        <h1 class="text-4xl font-bold mb-4">Tic Tac Toe</h1>
+        <h1 class="text-4xl font-bold mb-8">Tic Tac Toe</h1>
 
         <div class="grid grid-cols-3 gap-4 mb-4">
             {{ range $i, $row := .Board }}
@@ -31,15 +49,15 @@
         <p class="my-4 text-xl" id="match-id">Your Match ID: {{ .MatchID }}</p>
 
         <!-- Match ID Input -->
-        <div class="px-4" id="match-id-input-container">
+        <div class="mb-4 px-4" id="match-id-input-container">
             <label for="match-id-input" class="block text-base font-semibold mb-2 mx-auto text-center">Enter Opponent's
                 Match ID or wait for
                 them to join yours</label>
-            <div class="flex items-center justify-center">
+            <div class="flex items-center justify-center gap-2">
                 <input type="text" id="match-id-input" class="border-2 border-gray-300 rounded-lg p-2 w-64 text-center"
                     placeholder="Match ID" onkeydown="if (event.key === 'Enter') { mysocket.joinMatch(); }" />
                 <button onclick="mysocket.joinMatch()"
-                    class="ml-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Join</button>
+                    class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Join</button>
             </div>
         </div>
 
