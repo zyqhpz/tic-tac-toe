@@ -159,6 +159,9 @@ class MySocket {
           } else {
             document.getElementById("game-status").innerText = "You lost!";
           }
+
+          // update board to have the winning line
+          this.updateWinningLine(data.board);
         }
 
         this.gameEnded();
@@ -236,18 +239,44 @@ class MySocket {
     this.board[row][col] = player.mark;
   }
 
-  updateBoardStatus() {
-    // update board to this.board
-    const cells = document.querySelectorAll(".cell");
-    cells.forEach((cell) => {
-      const row = cell.getAttribute("data-row");
-      const col = cell.getAttribute("data-col");
-      cell.innerHTML = this.board[row][col];
-      cell.onclick = () => {
-        const row = cell.getAttribute("data-row");
-        const col = cell.getAttribute("data-col");
-        this.sendMove(row, col);
-      };
+  updateWinningLine(winningLine) {
+    // Determine the winning pattern
+    const isRowWin = winningLine.every((cell) => cell[0] === winningLine[0][0]); // all in the same row
+    const isColWin = winningLine.every((cell) => cell[1] === winningLine[0][1]); // all in the same column
+    const isDiagWin =
+      winningLine[0][0] === "0" &&
+      winningLine[1][0] === "1" &&
+      winningLine[2][0] === "2" &&
+      winningLine[0][1] === "0" &&
+      winningLine[1][1] === "1" &&
+      winningLine[2][1] === "2"; // diagonal
+    const isDiagReverseWin =
+      winningLine[0][0] === "0" &&
+      winningLine[1][0] === "1" &&
+      winningLine[2][0] === "2" &&
+      winningLine[0][1] === "2" &&
+      winningLine[1][1] === "1" &&
+      winningLine[2][1] === "0"; // reverse diagonal
+
+    // Apply appropriate class based on the winning pattern
+    winningLine.forEach((cell) => {
+      const row = String(cell[0]);
+      const col = String(cell[1]);
+      const cellElement = document.querySelector(
+        `.cell[data-row="${row}"][data-col="${col}"]`
+      );
+
+      if (cellElement) {
+        cellElement.classList.add("winner");
+
+        if (isRowWin) cellElement.classList.add("winner-row");
+        else if (isColWin) cellElement.classList.add("winner-col");
+        else if (isDiagWin) cellElement.classList.add("winner-diag");
+        else if (isDiagReverseWin)
+          cellElement.classList.add("winner-diag-reverse");
+      } else {
+        console.warn(`Cell at row ${row}, column ${col} not found.`);
+      }
     });
   }
 

@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	logger "tic-tac-toe/utils"
@@ -41,12 +42,13 @@ type Player struct {
 }
 
 type Message struct {
-	Row    int    `json:"row"`
-	Col    int    `json:"col"`
-	Player Player `json:"player"`
-	Game   Game   `json:"game"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
+	Row    int        `json:"row"`
+	Col    int        `json:"col"`
+	Player Player     `json:"player"`
+	Game   Game       `json:"game"`
+	Type   string     `json:"type"`
+	Status string     `json:"status"`
+	Board  [][]string `json:"board"`
 }
 
 var (
@@ -196,11 +198,12 @@ func (i *socketReader) read() {
 			if message.Type == "move" {
 				// Broadcast the message to all clients, including the current player
 				i.broadcast(message)
-				winner := i.analyzeBoard(message.Game.Board)
+				winner, winnerCoordinates := i.analyzeBoard(message.Game.Board)
 				if winner != "" {
 					logger.Log().Info().Msgf("Game over. Winner: %s", winner)
 					message.Type = "end"
 					message.Status = winner
+					message.Board = winnerCoordinates
 
 					game := Games[message.Game.MatchID]
 					game.Status = "ended"
@@ -276,40 +279,45 @@ func (i *socketReader) removeReader() {
 }
 
 // Analyze the board to check for a winner or a draw
-func (i *socketReader) analyzeBoard(board [][]string) string {
+func (i *socketReader) analyzeBoard(board [][]string) (string, [][]string) {
+
 	// Check rows
 	for i := 0; i < 3; i++ {
 		if board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != "" {
-			return board[i][0]
+			winnerCoordinates := [][]string{{fmt.Sprintf("%d", i), "0"}, {fmt.Sprintf("%d", i), "1"}, {fmt.Sprintf("%d", i), "2"}}
+			return board[i][0], winnerCoordinates
 		}
 	}
 
 	// Check columns
 	for i := 0; i < 3; i++ {
 		if board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != "" {
-			return board[0][i]
+			winnerCoordinates := [][]string{{"0", fmt.Sprintf("%d", i)}, {"1", fmt.Sprintf("%d", i)}, {"2", fmt.Sprintf("%d", i)}}
+			return board[0][i], winnerCoordinates
 		}
 	}
 
 	// Check diagonals
 	if board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != "" {
-		return board[0][0]
+		winnerCoordinates := [][]string{{"0", "0"}, {"1", "1"}, {"2", "2"}}
+		return board[0][0], winnerCoordinates
 	}
 
 	if board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != "" {
-		return board[0][2]
+		winnerCoordinates := [][]string{{"0", "2"}, {"1", "1"}, {"2", "0"}}
+		return board[0][2], winnerCoordinates
 	}
 
 	// Check for a draw
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
 			if board[i][j] == "" {
-				return ""
+				return "", nil // Game still ongoing
 			}
 		}
 	}
 
-	return "draw"
+	return "draw", nil // Game is a draw
 }
 
 func GenerateUniqueMatchID() string {
